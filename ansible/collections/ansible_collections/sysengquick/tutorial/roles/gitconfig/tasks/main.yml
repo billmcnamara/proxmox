@@ -1,0 +1,19 @@
+---
+- name: Lookup user home directory
+  sysengquick.tutorial.user_info:
+    username: "{{ gitconfig_user }}"
+  register: result
+
+- name: Write gitconfig
+  ansible.builtin.template:
+    src: gitconfig.j2
+    dest: "{{ gitconfig_dest }}"
+    mode: "{{ gitconfig_mode }}"
+  become: true
+  become_user: "{{ gitconfig_user }}"
+  vars:
+    values: |
+      {{
+        gitconfig_values_defaults
+        | ansible.builtin.combine(gitconfig_values, recursive=true)
+      }}

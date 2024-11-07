@@ -1,0 +1,15 @@
+---
+- name: Download cloud image for proxmox
+  hosts: proxmox
+  gather_facts: false
+
+  tasks:
+    - name: Download cloud image
+      ansible.builtin.import_role:
+        name: sysengquick.proxmox.cloud_image
+
+    - name: Create VM
+      ansible.builtin.import_role:
+        name: sysengquick.proxmox.api
+        tasks_from: create_vm
+      delegate_to: localhost

@@ -1,0 +1,20 @@
+---
+api_proxmox_defaults:
+  validate_certs: true
+api_create_vm_values_defaults:
+  balloon: 0
+  cloud_init:
+    format: qcow2
+    password: "$ecretPassw0rd!"
+    sshkeys: ~
+    storage: local
+    user: ansible
+  cpu_cores: 1
+  cpu_type: host
+  disk: []
+  image:
+    name: "{{ global_cloud_image_name | default('ubuntu') }}"
+    storage: "{{ global_cloud_image_storage | default('local') }}"
+  memory: 2048
+  network: []
+  onboot: false

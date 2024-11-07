@@ -1,0 +1,29 @@
+---
+argument_specs:
+  main:
+    short_description: Creates a user account
+    description:
+      - Creates user account.
+      - Adds sudo privileges if sudo_user is true.
+    author:
+      - John Ratliff <john@technoplaza.net>
+    options:
+      user_key_file:
+        type: str
+        required: false
+        default: /private/ssh/ansible.pub
+        description: The location of the public keyfile to add to ssh authorized_keys
+      user_name:
+        type: str
+        required: true
+        description: Username of the account to be created
+      user_shell:
+        type: str
+        required: false
+        default: /bin/bash
+        description: Login shell to associate with the user
+      user_sudo:
+        type: bool
+        required: false
+        default: false
+        description: Whether to give the user sudo privileges

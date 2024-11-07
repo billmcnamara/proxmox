@@ -1,0 +1,58 @@
+version: '3.8'
+services:
+  vault:
+    build:
+      context: ../  # Build context set to the root of the project
+      dockerfile: ./vault/Dockerfile.vault  # Dockerfile path relative to the build context
+      args:
+        http_proxy: ${http_proxy}
+        https_proxy: ${https_proxy}
+        no_proxy: ${no_proxy}
+    image: vault-image:latest
+    container_name: vault-container
+    environment:
+#      VAULT_DEV_ROOT_TOKEN_ID: "root"
+      VAULT_ADDR: "http://0.0.0.0:8200"
+    ports:
+      - "8200:8200"
+    cap_add:
+      - IPC_LOCK
+    #command: "vault server -config=/vault/config/vault-config.hcl"
+    command: >
+      sh -c "
+        # Start Vault server in the background
+        vault server -config=/vault/config/ &
+        VAULT_PID=$! &&
+        
+        # Wait for Vault to be unsealed and initialized
+        until vault status | grep -q 'Initialized.*true' && vault status | grep -q 'Sealed.*false'; do
+          echo 'Waiting for Vault to unseal and initialize...';
+          sleep 2;
+        done &
+    
+        # Run the initialization script
+        /usr/local/bin/vault-init.sh &&
+    
+        # Wait for Vault process to finish
+        wait $VAULT_PID"
+    volumes:
+      - vault_logs:/vault/logs
+      - vault_data:/vault/data
+      - vault_certs:/vault/certs
+      - /home/bill/proxmox/vault/config/vault-config_localhost.hcl:/vault/config/vault-config.hcl
+
+  ansible:
+    build:
+      context: ../  # Build context set to the root of the project
+      dockerfile: ./ansible/Dockerfile.ansible  # Dockerfile path relative to the build context
+    image: ansible-image:latest
+    container_name: ansible-container
+    volumes:
+      - ./ansible:/workspace
+    tty: true
+
+volumes:
+  vault_data:
+  vault_logs:
+  vault_certs:
+#  vault_config:
