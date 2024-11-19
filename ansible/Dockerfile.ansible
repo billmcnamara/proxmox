@@ -1,0 +1,84 @@
+FROM python:3.12
+# mcr.microsoft.com/devcontainers/python:1-3.12-bookworm
+# install poetry for python dependencies with extended timeout and retries
+RUN python3 -m pip install --default-timeout=60 --retries 5 --index-url=https://pypi.org/simple poetry~=1.8.2
+
+ARG CURL_OPTS='-sSLf'
+# Passed in from the docker-compose.override.yml
+ARG VAULT_ADDR
+ARG VAULT_TOKEN
+ARG my_username="default_value_which_should_be_overridden_either_in_docker_compose_or_in_docker_build"
+
+# ARG HPE_CA_URL=https://mydigitalbadge-ssl.its.hpecorp.net/hp/CAs
+# ARG ROOT_CA_CERT_URL=${HPE_CA_URL}/HPE_PrivateRootCA.base64.zip
+# ARG SSL_CA_CERT_URL=${HPE_CA_URL}/HP_ENT_Private_SSL_CA.base64.zip
+ARG ROOT_CA_CERT=HPE_PrivateRootCA.base64.zip
+ARG SSL_CA_CERT=HP_ENT_Private_SSL_CA.base64.zip
+ARG ZC_CA_CERT=ZscalerRootCertificate.zip
+
+RUN apt-get update && apt-get upgrade -y
+
+WORKDIR /usr/local/share/ca-certificates
+RUN apt-get update && apt-get install -y \
+    curl \
+    jq \
+    sshpass \
+    vim \
+    iputils-ping \
+    ca-certificates \
+    unzip \
+    && apt-get clean \
+    && update-ca-certificates
+
+COPY common/${ROOT_CA_CERT} common/${SSL_CA_CERT} common/${ZC_CA_CERT} ./ 
+# Install the certificates and set up the certs directory
+RUN env | sort && \
+    for cert in ${ROOT_CA_CERT} ${SSL_CA_CERT} ${ZC_CA_CERT}; do \
+        unzip ${cert}; \
+    done && \
+    rm *.zip && \
+    update-ca-certificates
+
+# Install Vault CLI
+ARG VAULT_VERSION=1.16.2
+
+RUN curl $CURL_OPTS -Lo /tmp/vault.zip \
+    https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip \
+    && unzip /tmp/vault.zip -d /usr/local/bin \
+    && rm /tmp/vault.zip
+
+# add hashicorp vault config
+RUN echo -e 'export VAULT_ADDR="http://vault-container:8200"\nexport VAULT_SKIP_VERIFY=1' >> ~/.bashrc
+
+# make prompt multiline cause it's too long by default
+RUN sed -i -E -e '/PS1="\$/c\    PS1=" ${userpart} ${lightblue}\\w ${gitbranch}${removecolor}\\n\\$ "' ~/.bashrc
+
+# enable bash completion for git
+RUN echo "source /usr/share/bash-completion/completions/git" >> ~/.bashrc
+
+
+WORKDIR /workspaces/ansible
+
+# set up poetry environment
+COPY ansible/poetry.lock ansible/pyproject.toml ./ 
+RUN poetry install
+
+# symlink poetry env to ~/venv
+RUN VN=$(poetry env list | head -n 1 | cut -d ' ' -f 1) \
+    && ln -s ~/.cache/pypoetry/virtualenvs/$VN /venv
+
+COPY ansible/collections/ansible_collections/sysengquick/tutorial/galaxy.yml ./ 
+RUN poetry run -- ansible-galaxy collection install .
+
+# remove empty collection directory so it finds the one in our git repo
+RUN rm -rf ~/.ansible/ansible/collections/ansible_collections/sysengquick/tutorial
+
+# Ensure poetry virtualenv is activated on shell start
+RUN echo 'source /venv/bin/activate' >> ~/.bashrc
+
+COPY ./ansible/scripts/ansible-init.sh /usr/local/bin/ansible-init.sh
+RUN sed -i "s/{{my_username}}/${my_username}/g" /usr/local/bin/ansible-init.sh
+RUN chmod +x /usr/local/bin/ansible-init.sh
+
+CMD ["/bin/bash", "-c", "SHELL=/bin/bash poetry shell"]
+# CMD ["/bin/bash"]

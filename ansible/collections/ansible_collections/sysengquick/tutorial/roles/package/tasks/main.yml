@@ -1,0 +1,10 @@
+---
+- name: Update package cache
+  ansible.builtin.import_role:
+    name: sysengquick.tutorial.package_cache
+
+- name: Install package
+  ansible.builtin.package:
+    name: "{{ package_name }}"
+    state: present
+  become: true

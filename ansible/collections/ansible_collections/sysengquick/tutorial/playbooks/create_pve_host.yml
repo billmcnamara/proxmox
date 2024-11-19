@@ -1,0 +1,42 @@
+---
+- name: Lookup vault file path
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Register the vault file path
+      ansible.builtin.set_fact:
+        vault_file_path: "{{ playbook_dir }}/vars/vault/proxmox.yaml"
+
+- name: Run create_cloud_vm playbook
+  ansible.builtin.import_playbook: sysengquick.proxmox.create_cloud_vm
+  vars:
+    global_cloud_image_name: fedora
+    global_cloud_image_storage: nas
+    global_proxmox_api:
+      host: pve.local.technoplaza.net
+      user: root@pam
+      token_id: ansible
+      token_secret: "{{ vault.proxmox_api.token_secret }}"
+    api_create_vm_values:
+      name: proxy.ath.local.technoplaza.net
+      cloud_init:
+        sshkeys: |
+          ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINQRZM5OpaNZztF6Sg0dUofqZKkeW9RpCwpm+r0XA3QP vscode@de19599a6f19
+      cpu_cores: 4
+      disk:
+        - {}
+        - size: 20
+      memory: 4096
+      network:
+        - {}
+        - ipconfig: ip=10.10.10.254/24
+          bridge: vmbr1
+      node: pve
+      onboot: true
+    vault: |-
+      {{
+        lookup('ansible.builtin.file', hostvars['localhost']['vault_file_path'])
+        | ansible.builtin.unvault('vault')
+        | from_yaml
+      }}

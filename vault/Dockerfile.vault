@@ -1,0 +1,54 @@
+FROM hashicorp/vault:1.18.0
+
+# ARG CURL_OPTS='--silent --show-error --location --fail'
+ARG CURL_OPTS='-sSLf'
+
+# Passed in from the docker-compose.override.yml
+ARG http_proxy
+ARG https_proxy
+ARG no_proxy
+ARG my_username="default_value_which_should_be_overridden_either_in_docker_compose_or_in_docker_build"
+
+# ARG HPE_CA_URL=https://mydigitalbadge-ssl.its.hpecorp.net/hp/CAs
+# ARG ROOT_CA_CERT_URL=${HPE_CA_URL}/HPE_PrivateRootCA.base64.zip
+# ARG SSL_CA_CERT_URL=${HPE_CA_URL}/HP_ENT_Private_SSL_CA.base64.zip
+ARG ROOT_CA_CERT=HPE_PrivateRootCA.base64.zip
+ARG SSL_CA_CERT=HP_ENT_Private_SSL_CA.base64.zip
+ARG ZC_CA_CERT=ZscalerRootCertificate.zip
+
+WORKDIR /usr/local/share/ca-certificates
+
+# Copy certificates archives into the image
+COPY common/${ROOT_CA_CERT} common/${SSL_CA_CERT} common/${ZC_CA_CERT}  ./
+
+RUN apk update && apk add --no-cache \
+    curl \
+    jq \
+    ca-certificates \
+    && update-ca-certificates
+
+RUN env | sort && \
+    for cert in ${ROOT_CA_CERT} ${SSL_CA_CERT} ${ZC_CA_CERT}; do \
+        unzip ${cert}; \
+    done && \
+    rm *.zip && \
+    update-ca-certificates && \
+    install -o vault -g vault -d /vault/data /vault/certs /vault/config /vault/logs 
+
+RUN chown -R vault:vault /vault/certs /vault/config /vault/data /vault/logs
+
+#COPY --chown=vault:vault vault/config/vault-config_localhost.hcl /vault/config/vault-config.hcl
+COPY --chown=vault:vault vault/config/read-only.hcl /vault/config/read-only.hcl
+
+WORKDIR /
+
+# Environment variables for Vault initialization
+ENV VAULT_KEY_SHARES=1
+ENV VAULT_KEY_THRESHOLD=1
+ENV VAULT_ADDR=http://0.0.0.0:8200
+
+COPY vault/scripts/vault-init.sh /usr/local/bin/vault-init.sh
+RUN sed -i "s/{{my_username}}/${my_username}/g" /usr/local/bin/vault-init.sh
+RUN chmod +x /usr/local/bin/vault-init.sh
+
+# RUN cat /vault/init-output.txt |grep 

@@ -1,0 +1,11 @@
+---
+- name: Install neofetch
+  hosts: lxc
+  gather_facts: false
+
+  tasks:
+    - name: Install neofetch
+      ansible.builtin.import_role:
+        name: sysengquick.tutorial.package
+      vars:
+        package_name: neofetch

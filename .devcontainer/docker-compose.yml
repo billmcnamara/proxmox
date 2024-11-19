@@ -1,0 +1,63 @@
+version: '3.8'
+services:
+  vault:
+    build:
+      context: ../
+      dockerfile: ./vault/Dockerfile.vault
+      args:
+        http_proxy: ${http_proxy}
+        https_proxy: ${https_proxy}
+        no_proxy: ${no_proxy}
+        my_username: "bill"
+    image: vault-image:latest
+    container_name: vault-container
+    environment:
+#      VAULT_DEV_ROOT_TOKEN_ID: "root"
+      VAULT_ADDR: "http://0.0.0.0:8200"
+    ports:
+      - "8200:8200"
+    cap_add:
+      - IPC_LOCK
+    #command: "vault server -config=/vault/config/vault-config.hcl"
+    command: >
+      sh -c "
+        vault server -config=/vault/config/ &
+        VAULT_PID=$! &&
+        
+        until vault status | grep -q 'Initialized.*true' && vault status | grep -q 'Sealed.*false'; do
+          echo 'Waiting for Vault to unseal and initialize...';
+          sleep 2;
+        done &
+    
+        /usr/local/bin/vault-init.sh &&
+        wait $VAULT_PID"
+    volumes:
+      - vault_logs:/vault/logs
+      - vault_data:/vault/data
+      - vault_certs:/vault/certs
+      - /home/bill/proxmox/vault/config/vault-config_localhost.hcl:/vault/config/vault-config.hcl
+
+  ansible:
+    build:
+      context: ../
+      dockerfile: ./ansible/Dockerfile.ansible
+      args:
+        my_username: "bill"
+    image: ansible-image:latest
+    container_name: ansible-container
+    environment:
+      VAULT_ADDR: "http://vault-container:8200"
+    command: >
+      sh -c "
+        /usr/local/bin/ansible-init.sh
+        SHELL=/bin/bash poetry shell
+        "
+    volumes:
+      - ./ansible:/workspace
+    tty: true
+
+volumes:
+  vault_data:
+  vault_logs:
+  vault_certs:
+#  vault_config:

@@ -1,0 +1,17 @@
+{
+	"name": "project1",
+	"dockerComposeFile": ["docker-compose.yml"],   // Ensure this path is correct relative to the devcontainer.json file
+	"service": "ansible",  // This should match the name of the service in your docker-compose.yml (ansible)
+	"workspaceFolder": "/workspace",  // The directory that gets mounted from the host into the container
+	"extensions": ["ms-azuretools.vscode-docker"],  // Docker-related extension in VS Code
+  
+	// Optionally specify any settings to be applied inside the container
+	"settings": {
+	  "terminal.integrated.shell.linux": "/bin/sh"
+	},
+  
+	// Run this command after the container is created (to verify Ansible installation, for example)
+	"postCreateCommand": "which ansible"
+	//"postCreateCommand": "ansible --version"
+  }
+  
