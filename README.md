@@ -1,3 +1,7 @@
+useradd -m -g users bill
+root@ubuntu1:~# echo "bill:xxxxxxx1234-" | chpasswd
+chsh -s /bin/bash
+
 # ansible
 Ansible tutorial repo files
 
